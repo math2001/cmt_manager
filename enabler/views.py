@@ -1,7 +1,8 @@
 import random
 import string
+import yaml
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.template import loader
 from django.views.decorators.http import require_GET, require_POST
 
@@ -50,6 +51,31 @@ def index(request):
     return render(request, "enabler/index.html", context)
 
 
+@require_GET
+def conf(request):
+    response = HttpResponse(content_type="text/plain")
+    if "node" not in request.GET or "group" not in request.GET:
+        response.status_code = 400
+        response.write("required parameters: node, group")
+        return response
+
+    group = request.GET["group"]
+    node = request.GET["node"]
+    if group not in state:
+        response.status_code = 404
+        response.write("unknown group: {}".format(group))
+        return response
+
+    if node not in state[group]:
+        response.status_code = 404
+        response.write("unknown_node: {}".format(node))
+        return response
+
+    response.status_code = 200
+    yaml.dump(state[group][node], response)
+    return response
+
+
 @require_POST
 def update_probes_conf(request):
     for name in request.POST:
@@ -59,25 +85,25 @@ def update_probes_conf(request):
             continue
 
         try:
-            group, node, identifer = parse_name(name)
+            group, node, identfier = parse_name(name)
         except ValueError as e:
             print(e)  # FIXME: proper logging?
             return HttpResponseBadRequest("invalid name {!r}".format(name))
 
-        if identifer == "enabled":
-            state[group][node][identifer] = request.POST[name] == "true"
-        elif identifer == "level":
+        if identfier == "enabled":
+            state[group][node][identfier] = request.POST[name] == "true"
+        elif identfier == "level":
             assert request.POST[name] in ALERT_LEVELS, request.POST[name]
-            state[group][node][identifer] = request.POST[name]
+            state[group][node][identfier] = request.POST[name]
         else:
-
-            if "-" not in identifer:
+            if "-" not in identfier:
                 return HttpResponseBadRequest("invalid name {!r}".format(name))
-
-            check, identifer = identifer.split("-", maxsplit=1)
-            if identifer != "disabled-time-range":
+            # this is check specific
+            check, identfier = identfier.split("-", maxsplit=1)
+            print(check, identfier)
+            if identfier != "disabled-time-range":
                 return HttpResponseBadRequest("invalid name {!r}".format(name))
-            state[group][node][check] = request.POST[name]
+            state[group][node]["checks"][check] = request.POST[name]
 
     return redirect("enabler:index")
 

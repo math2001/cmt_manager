@@ -13,11 +13,17 @@
   <div class="navbar navbar-expand-lg navbar-light bg-light sticky-top">
     <a class="navbar-brand" href="/">CMT Manager</a>
     <div class="form-inline ml-auto">
+
+      <!-- bootstrap is stupid, it doesn't update the style when the
+      input[type=reset] button is pressed, and so the visuals don't match the
+      actual state. So instead, refresh the page -->
+      <a class="btn btn-outline-secondary" href="">Reset All</a>
+
       <input
         type="submit"
         value="Submit"
         form="control-form"
-        class="btn btn-outline-success">
+        class="btn btn-outline-success ml-1">
     </div>
   </div>
 
@@ -106,7 +112,7 @@
 
               <div class="container my-4 px-0">
                 <h5>Checks</h5>
-                {% for check, enabled in state.checks.items %}
+                {% for check, timerange in state.checks.items %}
                 <h6><code>{{ check }}</code></h6>
                 <div class="input-group">
                   <div class="input-group-prepend">
@@ -118,6 +124,7 @@
                 </div>
                 <input
                   name="{{ group }}-{{ node }}-{{ check }}-disabled-time-range"
+                  value="{{ timerange }}"
                   type="text"
                   class="form-control"
                   id="{{ group }}-{{ node }}-{{ check }}-disabled-time-range"
