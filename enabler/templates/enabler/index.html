@@ -12,23 +12,11 @@
 <body>
   <div class="navbar navbar-expand-lg navbar-light bg-light sticky-top">
     <a class="navbar-brand" href="/">CMT Manager</a>
-    <div class="form-inline ml-auto">
-
-      <!-- bootstrap is stupid, it doesn't update the style when the
-      input[type=reset] button is pressed, and so the visuals don't match the
-      actual state. So instead, refresh the page -->
-      <a class="btn btn-outline-secondary" href="">Reset All</a>
-
-      <input
-        type="submit"
-        value="Submit"
-        form="control-form"
-        class="btn btn-outline-success ml-1">
-    </div>
   </div>
 
   <div class="container my-4">
     <div class="row">
+      <!-- group column -->
       <div class="col-2">
         <h4>Group</h4>
         <div class="nav flex-column nav-pills" id="v-groups-tab" role="tablist" aria-orientation="vertical">
@@ -43,8 +31,9 @@
             {{ group }}
           </a>
           {% endfor %}
+        </div>
       </div>
-      </div>
+      <!-- node column -->
       <div class="col-2">
         <h4>Node</h4>
         <div class="tab-content" id="v-nodes-tab">
@@ -67,79 +56,95 @@
           {% endfor %}
         </div>
       </div>
+
+      <!-- probe control column -->
       <div class="col-6">
         <h4>Probe Controls</h4>
-        <form action="{% url 'enabler:update-probes-conf' %}" method="POST" id="control-form">
-          {% csrf_token %}
-          <div class="tab-content" id="v-nodes-tabContent">
-            {% for group, nodes in groups.items %}
-            {% for node, state in nodes.items %}
-            <div class="tab-pane" id="v-nodes-{{ group }}-{{ node }}">
-              <div class="btn-group btn-group-toggle my-1 mr-1" data-toggle="buttons">
-                <label class="btn btn-info">
-                  <input
-                    type="radio"
-                    name="{{ group }}-{{ node }}-enabled"
-                    {% if state.enabled %} checked {% endif %}
-                    value="true"
-                    autocomplete="off">
-                  Enable
-                </label>
-                <label class="btn btn-info">
-                  <input
-                    type="radio"
-                    name="{{ group }}-{{ node }}-enabled"
-                    value="false"
-                    {% if not state.enabled %} checked {% endif %}
-                    autocomplete="off">
-                  Disable
-                </label>
+        <div class="tab-content" id="v-nodes-tabContent">
+          {% for group, nodes in groups.items %}
+          {% for node, state in nodes.items %}
+          <div class="tab-pane" id="v-nodes-{{ group }}-{{ node }}">
+            <form
+              action="{% url 'enabler:update-probes-conf' %}?group={{ group | urlencode }}&node={{ node | urlencode }}"
+              method="POST"
+              id="control-form">
+              {% csrf_token %}
+              <div class="custom-control custom-checkbox">
+                <input
+                  type="checkbox"
+                  name="probe-enabled"
+                  id="probe-enabled"
+                  {% if state.probe_enabled %} checked {% endif %}
+                  class="custom-control-input"
+                  autocomplete="off">
+                  <label
+                    class="custom-control-label"
+                    for="probe-enabled">
+                    Probe enabled
+                  </label>
+              </div>
+              <div class="custom-control custom-checkbox">
+                <input
+                  type="checkbox"
+                  name="pager-enabled"
+                  id="pager-enabled"
+                  {% if state.pager_enabled %} checked {% endif %}
+                  class="custom-control-input"
+                  autocomplete="off">
+                  <label
+                    class="custom-control-label"
+                    for="pager-enabled">
+                    Pager enabled
+                  </label>
               </div>
 
               <div class="btn-group btn-group-toggle my-1" data-toggle="buttons">
-                {% for level in levels %}
-                <label class="btn btn-secondary">
+                {% for notice_level in levels %}
+                <label class="btn btn-info">
                   <input
                     type="radio"
-                    name="{{ group }}-{{ node }}-level"
-                    value="{{ level }}"
-                    {% if level == state.level %} checked {% endif %}
+                    name="notice-level"
+                    value="{{ notice_level }}"
+                    {% if notice_level == state.notice_level %} checked {% endif %}
                     autocomplete="off">
-                    {{ level | title }}
+                    {{ notice_level | title }}
                 </label>
                 {% endfor %}
               </div>
 
+
               <div class="container my-4 px-0">
                 <h5>Checks</h5>
-                {% for check, timerange in state.checks.items %}
+                {% for check, timeswitch in state.checks.items %}
                 <h6><code>{{ check }}</code></h6>
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <label
                       class="input-group-text"
-                      for="{{ group }}-{{ node }}-{{ check }}-disabled-time-range">
-                    Disabled time range
+                      for="time-switch-{{ check }}">
+                      Time Switch
                   </label>
                 </div>
                 <input
-                  name="{{ group }}-{{ node }}-{{ check }}-disabled-time-range"
-                  value="{{ timerange }}"
+                  name="time-switch-{{ check }}"
+                  value="{{ timeswitch }}"
                   type="text"
                   class="form-control"
-                  id="{{ group }}-{{ node }}-{{ check }}-disabled-time-range"
-                  placeholder="Enter time range">
+                  placeholder="Enter time switch">
                 </div>
                 <small class="form-text text-muted">
-                  Enter a valid time range. Leave empty to enable.
+                  Enter a valid time switch. Leave empty to enable.
                 </small>
                 {% endfor %}
               </div>
-            </div>
-            {% endfor %}
-            {% endfor %}
+            <p class="text-right">
+              <input type="submit" value="Submit" class="btn btn-primary">
+            </p>
+            </form>
           </div>
-        </form>
+          {% endfor %}
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>

@@ -1,53 +1,44 @@
-import random
-import string
 import yaml
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.template import loader
 from django.views.decorators.http import require_GET, require_POST
-
-random.seed(2)
-
-ALERT_LEVELS = ("alert", "warning", "notice")
-CHECKS = [
-    "cert_db",
-    "cert_mails",
-    "files_backup_remote",
-    "db1_filer",
-    "files_backup_local",
-    "savemylife_app_url",
-    "ck_test_clevehr",
-    "ck_monitor_kheops",
-    "ck_www_kheops",
-    "ck_jira",
-    "ck_imed2_synlab",
-    "ck_login_pluus",
-    "ck_www_pluus",
-    "ck_rdv_justlink",
-    "ck_www_justlink",
-    "ck_ps_java",
-]
-
-state = {}
-
-j = 0
-for name in ("group1", "group2", "group3", "group4"):
-    state[name] = {}
-    for i in range(random.randint(1, 5)):
-        node = "node" + string.ascii_uppercase[j]
-        j += 1
-        state[name][node] = {
-            "enabled": bool(random.randint(0, 1)),
-            "level": random.choice(ALERT_LEVELS),
-            "checks": {},
-        }
-        for check in random.sample(CHECKS, random.randint(2, len(CHECKS) // 2)):
-            state[name][node]["checks"][check] = ""
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from .models import Probe, Check
 
 
 @require_GET
 def index(request):
-    context = {"groups": state, "levels": ALERT_LEVELS}
+    state = {
+        # groupname: {
+        #   nodename: {
+        #     probe_enabled: bool,
+        #     pager_enabled: bool,
+        #     notice_level: "alert" | "warning" | "notice",
+        #     checks: {
+        #       checkname: timeswitch (string)
+        #     }
+        #   }
+        # }
+    }
+    probes = Probe.objects.all()
+    for probe in probes:
+
+        if probe.group not in state:
+            state[probe.group] = {}
+
+        assert probe.node not in state[probe.group]
+        state[probe.group][probe.node] = {
+            "probe_enabled": probe.probe_enabled,
+            "pager_enabled": probe.pager_enabled,
+            "notice_level": probe.notice_level,
+            "checks": {},
+        }
+
+        for check in Check.objects.filter(probe=probe):
+            state[probe.group][probe.node]["checks"][check.name] = check.time_switch
+
+    context = {"groups": state, "levels": Probe.NOTICE_LEVELS}
     return render(request, "enabler/index.html", context)
 
 
@@ -78,32 +69,48 @@ def conf(request):
 
 @require_POST
 def update_probes_conf(request):
+    if "group" not in request.GET or "node" not in request.GET:
+        return HttpResponseBadRequest("missing parameters 'group' and/or 'node'")
+
+    required_fields = ["notice-level"]
+    for fields in required_fields:
+        if fields not in request.POST:
+            return HttpResponseBadRequest("missing field {!r}".format(fields))
+
+    try:
+        probe = Probe.objects.get(group=request.GET["group"], node=request.GET["node"])
+    except ObjectDoesNotExist:
+        return HttpResponseBadRequest("unknown group/node pair")
+    except MultipleObjectsReturned:
+        return HttpResponseBadRequest(
+            "corrupted state: multiple probes for the given group/node pair"
+        )
+
+    if request.POST["notice-level"] not in Probe.NOTICE_LEVELS:
+        return HttpResponseBadRequest("invalid notice level")
+
+    probe.probe_enabled = "probe-enabled" in request.POST
+    probe.pager_enabled = "pager-enabled" in request.POST
+    probe.notice_level = request.POST["notice-level"]
+    probe.save()
+
     for name in request.POST:
-        # hard-coded, but the documentation hard codes it too in the documentation
-        # https://docs.djangoproject.com/en/dev/ref/csrf/#acquiring-the-token-if-csrf-use-sessions-or-csrf-cookie-httponly-is-true
-        if name == "csrfmiddlewaretoken":
+        if not name.startswith("time-switch-"):
             continue
 
-        try:
-            group, node, identfier = parse_name(name)
-        except ValueError as e:
-            print(e)  # FIXME: proper logging?
-            return HttpResponseBadRequest("invalid name {!r}".format(name))
+        checkname = name[len("time-switch-") :]
 
-        if identfier == "enabled":
-            state[group][node][identfier] = request.POST[name] == "true"
-        elif identfier == "level":
-            assert request.POST[name] in ALERT_LEVELS, request.POST[name]
-            state[group][node][identfier] = request.POST[name]
-        else:
-            if "-" not in identfier:
-                return HttpResponseBadRequest("invalid name {!r}".format(name))
-            # this is check specific
-            check, identfier = identfier.split("-", maxsplit=1)
-            print(check, identfier)
-            if identfier != "disabled-time-range":
-                return HttpResponseBadRequest("invalid name {!r}".format(name))
-            state[group][node]["checks"][check] = request.POST[name]
+        try:
+            check = Check.objects.get(probe=probe, name=checkname)
+        except ObjectDoesNotExists:
+            return HttpResponseBadRequest("unknown check for given group/node pair")
+        except MultipleObjectsReturned:
+            return HttpResponseBadRequest(
+                "corrupted state: multiple checks for the given group/node/check triple"
+            )
+
+        check.time_switch = request.POST[name]
+        check.save()
 
     return redirect("enabler:index")
 
