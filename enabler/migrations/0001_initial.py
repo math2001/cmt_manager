@@ -8,28 +8,48 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Probe',
+            name="Probe",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('group', models.CharField(max_length=200)),
-                ('node', models.CharField(max_length=200)),
-                ('probe_enabled', models.BooleanField()),
-                ('pager_enabled', models.BooleanField()),
-                ('notice_level', models.CharField(max_length=50)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("group", models.CharField(max_length=200)),
+                ("node", models.CharField(max_length=200)),
+                ("probe_enabled", models.BooleanField()),
+                ("pager_enabled", models.BooleanField()),
+                ("notice_level", models.CharField(max_length=50)),
             ],
         ),
         migrations.CreateModel(
-            name='Check',
+            name="Check",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=200)),
-                ('time_range', models.CharField(max_length=200)),
-                ('probe', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='enabler.probe')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=200)),
+                ("time_range", models.CharField(max_length=200)),
+                (
+                    "probe",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, to="enabler.probe"
+                    ),
+                ),
             ],
         ),
     ]
