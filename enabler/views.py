@@ -1,9 +1,14 @@
 import yaml
-from django.shortcuts import render, redirect
+import requests
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.template import loader
 from django.views.decorators.http import require_GET, require_POST
-from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from django.core.exceptions import (
+    ObjectDoesNotExist,
+    MultipleObjectsReturned,
+)
+from django.db import IntegrityError
 from .models import Probe, Check
 
 
@@ -44,26 +49,25 @@ def index(request):
 
 @require_GET
 def conf(request):
-    response = HttpResponse(content_type="text/plain")
     if "node" not in request.GET or "group" not in request.GET:
-        response.status_code = 400
-        response.write("required parameters: node, group")
-        return response
+        return HttpResponseBadRequest("required parameters: node, group")
 
     group = request.GET["group"]
     node = request.GET["node"]
-    if group not in state:
-        response.status_code = 404
-        response.write("unknown group: {}".format(group))
-        return response
 
-    if node not in state[group]:
-        response.status_code = 404
-        response.write("unknown_node: {}".format(node))
-        return response
+    obj = get_object_or_404(Probe, group=group, node=node)
 
-    response.status_code = 200
-    yaml.dump(state[group][node], response)
+    response = HttpResponse(content_type="text/plain")
+    yaml.dump(
+        {
+            "global": {
+                "enable": obj.probe_enabled,
+                "enable_pager": obj.pager_enabled,
+                "alert_max_level": obj.notice_level,
+            }
+        },
+        response,
+    )
     return response
 
 
@@ -113,6 +117,57 @@ def update_probes_conf(request):
         check.save()
 
     return redirect("enabler:index")
+
+
+@require_GET
+def fetch_probes_checks(request):
+    hostname = "192.168.122.118"
+    port = "9200"
+    index = "graylog_0"
+    response = requests.get(
+        "http://{}:{}/{}/_search".format(hostname, port, index),
+        json={
+            "collapse": {
+                "field": "cmt_id",
+            },
+            "_source": [""],
+        },
+    )
+    if response.status_code != 200:
+        return HttpResponseBadRequest(
+            "invalid response from the server. status_code: {} body: {}".format(
+                response.status_code,
+                response.text,
+            )
+        )
+    result = response.json()
+
+    checks_added = []
+    for hit in result["hits"]["hits"]:
+        check_id = hit["fields"]["cmt_id"][0]
+        group, node, module, checkname = check_id.split(".")
+        probe = Probe(
+            group=group,
+            node=node,
+            probe_enabled=True,
+            pager_enabled=True,
+            notice_level=Probe.NOTICE_LEVELS[0],
+        )
+
+        try:
+            probe.save()
+        except IntegrityError:
+            probe = Probe.objects.get(group=group, node=node)
+
+        check = Check(probe=probe, name=checkname)
+
+        try:
+            check.save()
+            checks_added.append(check_id)
+        except IntegrityError:
+            pass
+
+    return JsonResponse({"checks_added": checks_added})
 
 
 def parse_name(name):

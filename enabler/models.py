@@ -2,7 +2,10 @@ from django.db import models
 
 
 class Probe(models.Model):
-    NOTICE_LEVELS = ["alert", "warning", "notice"]
+    class Meta:
+        unique_together = [["group", "node"]]
+
+    NOTICE_LEVELS = ["alert", "warn", "notice"]
 
     group = models.CharField(max_length=200)
     node = models.CharField(max_length=200)
@@ -13,6 +16,9 @@ class Probe(models.Model):
 
 
 class Check(models.Model):
+    class Meta:
+        unique_together = [["probe", "name"]]
+
     probe = models.ForeignKey(Probe, on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     time_switch = models.CharField(max_length=200)
