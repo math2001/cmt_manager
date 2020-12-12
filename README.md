@@ -34,4 +34,4 @@ variable.
 
 Visit `/cmt/fetch-probes-checks`. Be careful, it can't do better than assume
 that the `max_alert_level`, `enable` and `enable_pager` keys, you have to update
-them manually.
+them manually in `/cmt/`.
